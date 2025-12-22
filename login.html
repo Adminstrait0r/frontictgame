@@ -74,6 +74,9 @@
 <script type="module">
 import { supabase } from './supabase.js';
 
+// Use your deployed Vercel URL here
+const DEPLOYED_URL = 'https://frontictgame-git-main-noahs-projects-d293e9b7.vercel.app';
+
 let isLogin = true;
 
 const authBtn = document.getElementById('authBtn');
@@ -116,10 +119,9 @@ authBtn.addEventListener('click', async () => {
 
       messageEl.style.color = 'green';
       messageEl.textContent = `Welcome back, ${data.user.email}!`;
-      console.log('Logged in user:', data.user);
 
-      // TODO: redirect to game page or leaderboard
-      // window.location.href = '/game.html';
+      // Redirect to game page
+      window.location.href = `${DEPLOYED_URL}/game.html`;
 
     } else {
       // SIGNUP
@@ -127,14 +129,13 @@ authBtn.addEventListener('click', async () => {
         email,
         password,
         options: {
-          emailRedirectTo: window.location.origin // change to deployed URL in production
+          emailRedirectTo: DEPLOYED_URL
         }
       });
       if (error) throw error;
 
       messageEl.style.color = 'green';
       messageEl.textContent = `Sign up successful! Please check your email to verify your account.`;
-      console.log('Signup data:', data.user);
     }
   } catch (err) {
     console.error(err);
