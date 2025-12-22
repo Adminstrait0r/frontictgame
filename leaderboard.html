@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Leaderboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #0f172a;
+      color: #e5e7eb;
+      padding: 20px;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    table {
+      width: 100%;
+      max-width: 800px;
+      margin: auto;
+      border-collapse: collapse;
+      background: #020617;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    th, td {
+      padding: 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #1e293b;
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+
+    tr:nth-child(even) {
+      background: #020617;
+    }
+
+    .center {
+      text-align: center;
+    }
+
+    .rank {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .rank img {
+      width: 28px;
+      height: 28px;
+      object-fit: contain;
+    }
+  </style>
+</head>
+<body>
+
+<h1>🏆 Leaderboard</h1>
+
+<table>
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Player</th>
+      <th>Rank</th>
+      <th class="center">Rank Stars</th>
+      <th class="center">Total Stars</th>
+    </tr>
+  </thead>
+  <tbody id="leaderboard">
+    <tr>
+      <td colspan="5" class="center">Loading...</td>
+    </tr>
+  </tbody>
+</table>
+
+<script type="module">
+  import { supabase } from "./supabase.js";
+
+  async function loadLeaderboard() {
+    const { data, error } = await supabase
+      .from("users")
+      .select(`
+        id,
+        full_name,
+        total_stars,
+        ranks (
+          rank_name,
+          rank_image,
+          stars
+        )
+      `)
+      .order("total_stars", { ascending: false });
+
+    const tbody = document.getElementById("leaderboard");
+    tbody.innerHTML = "";
+
+    if (error) {
+      console.error(error);
+      tbody.innerHTML = "<tr><td colspan='5'>Error loading leaderboard</td></tr>";
+      return;
+    }
+
+    data.forEach((user, index) => {
+      const rank = user.ranks || {};
+
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${index + 1}</td>
+        <td>${user.full_name}</td>
+        <td>
+          <div class="rank">
+            ${rank.rank_image ? `<img src="${rank.rank_image}">` : ""}
+            ${rank.rank_name || "Unranked"}
+          </div>
+        </td>
+        <td class="center">${rank.stars ?? 0}</td>
+        <td class="center">${user.total_stars ?? 0}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  loadLeaderboard();
+</script>
+
+</body>
+</html>
