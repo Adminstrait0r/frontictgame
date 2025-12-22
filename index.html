@@ -9,6 +9,7 @@
   .choice { display:flex; gap:10px; margin-bottom:5px; align-items:center; }
   button { margin-top: 10px; }
   select { margin-bottom: 20px; margin-right: 10px; }
+  #timerDisplay { font-weight: bold; color: red; margin-bottom: 10px; }
 </style>
 </head>
 <body>
@@ -28,6 +29,7 @@
   <option value="hard">Hard</option>
 </select>
 
+<div id="timerDisplay"></div>
 <div id="quizContainer"></div>
 
 <div>
@@ -44,6 +46,8 @@ import { supabase } from './supabase.js';
 let questions = [];
 let currentIndex = 0;
 let userAnswers = {}; // { question_id: [selected option ids] }
+let timerInterval;
+let timeLeft = 0;
 
 const quizContainer = document.getElementById('quizContainer');
 const prevBtn = document.getElementById('prevBtn');
@@ -52,8 +56,9 @@ const submitBtn = document.getElementById('submitBtn');
 const scoreContainer = document.getElementById('scoreContainer');
 const typeFilter = document.getElementById('typeFilter');
 const difficultyFilter = document.getElementById('difficultyFilter');
+const timerDisplay = document.getElementById('timerDisplay');
 
-// Load distinct types from Supabase
+// Load distinct types
 async function loadTypes() {
   const { data, error } = await supabase
     .from('game_questions')
@@ -63,7 +68,6 @@ async function loadTypes() {
 
   if(error) return alert(error.message);
 
-  // Get unique types
   const types = [...new Set(data.map(q => q.type))];
   typeFilter.innerHTML = '<option value="">-- Select Type --</option>';
   types.forEach(t => {
@@ -74,7 +78,7 @@ async function loadTypes() {
   });
 }
 
-// Load questions based on type and difficulty
+// Load questions based on type & difficulty
 async function loadQuestions() {
   const type = typeFilter.value;
   const difficulty = difficultyFilter.value;
@@ -87,6 +91,7 @@ async function loadQuestions() {
       question_text,
       difficulty,
       type,
+      timer_seconds,
       game_question_options (
         id,
         option_text,
@@ -105,9 +110,24 @@ async function loadQuestions() {
   renderQuestion();
 }
 
+function startTimer(seconds) {
+  clearInterval(timerInterval);
+  timeLeft = seconds;
+  timerDisplay.textContent = `Time left: ${timeLeft} sec`;
+  timerInterval = setInterval(() => {
+    timeLeft--;
+    timerDisplay.textContent = `Time left: ${timeLeft} sec`;
+    if(timeLeft <= 0){
+      clearInterval(timerInterval);
+      nextQuestion();
+    }
+  }, 1000);
+}
+
 function renderQuestion() {
   if(questions.length === 0){
     quizContainer.innerHTML = 'No questions available for this type/difficulty.';
+    timerDisplay.textContent = '';
     return;
   }
 
@@ -126,6 +146,9 @@ function renderQuestion() {
       `).join('')}
     </div>
   `;
+
+  // Start timer for this question
+  startTimer(q.timer_seconds || 30);
 }
 
 function saveAnswer() {
@@ -135,13 +158,27 @@ function saveAnswer() {
   userAnswers[q.id] = checkedOptions;
 }
 
-// Navigation
-prevBtn.onclick = () => { saveAnswer(); if(currentIndex > 0) currentIndex--; renderQuestion(); };
-nextBtn.onclick = () => { saveAnswer(); if(currentIndex < questions.length - 1) currentIndex++; renderQuestion(); };
-
-// Submit
-submitBtn.onclick = () => {
+function nextQuestion() {
   saveAnswer();
+  if(currentIndex < questions.length - 1) {
+    currentIndex++;
+    renderQuestion();
+  } else {
+    submitQuiz();
+  }
+}
+
+function prevQuestion() {
+  saveAnswer();
+  if(currentIndex > 0) {
+    currentIndex--;
+    renderQuestion();
+  }
+}
+
+function submitQuiz() {
+  saveAnswer();
+  clearInterval(timerInterval);
   let score = 0;
   questions.forEach(q => {
     const correctOptions = q.game_question_options.filter(o => o.is_correct).map(o => o.id);
@@ -150,10 +187,16 @@ submitBtn.onclick = () => {
       score++;
     }
   });
+  quizContainer.innerHTML = '';
+  timerDisplay.textContent = '';
   scoreContainer.innerHTML = `<h2>Your Score: ${score} / ${questions.length}</h2>`;
-};
+}
 
-// Enable difficulty only after type is selected
+// Event listeners
+prevBtn.onclick = prevQuestion;
+nextBtn.onclick = nextQuestion;
+submitBtn.onclick = submitQuiz;
+
 typeFilter.onchange = () => {
   difficultyFilter.disabled = !typeFilter.value;
   loadQuestions();
