@@ -8,16 +8,21 @@
   .question-container { margin-bottom: 20px; }
   .choice { display:flex; gap:10px; margin-bottom:5px; align-items:center; }
   button { margin-top: 10px; }
-  select { margin-bottom: 20px; }
+  select { margin-bottom: 20px; margin-right: 10px; }
 </style>
 </head>
 <body>
 
 <h1>Quiz</h1>
 
+<label for="typeFilter">Select Type:</label>
+<select id="typeFilter">
+  <option value="">-- Select Type --</option>
+</select>
+
 <label for="difficultyFilter">Select Difficulty:</label>
-<select id="difficultyFilter">
-  <option value="">All</option>
+<select id="difficultyFilter" disabled>
+  <option value="">-- Select Difficulty --</option>
   <option value="easy">Easy</option>
   <option value="medium">Medium</option>
   <option value="hard">Hard</option>
@@ -45,12 +50,37 @@ const prevBtn = document.getElementById('prevBtn');
 const nextBtn = document.getElementById('nextBtn');
 const submitBtn = document.getElementById('submitBtn');
 const scoreContainer = document.getElementById('scoreContainer');
+const typeFilter = document.getElementById('typeFilter');
 const difficultyFilter = document.getElementById('difficultyFilter');
 
-// Load questions from Supabase based on selected difficulty
+// Load distinct types from Supabase
+async function loadTypes() {
+  const { data, error } = await supabase
+    .from('game_questions')
+    .select('type', { count: 'exact', head: false })
+    .neq('type', '')
+    .order('type', { ascending: true });
+
+  if(error) return alert(error.message);
+
+  // Get unique types
+  const types = [...new Set(data.map(q => q.type))];
+  typeFilter.innerHTML = '<option value="">-- Select Type --</option>';
+  types.forEach(t => {
+    const opt = document.createElement('option');
+    opt.value = t;
+    opt.textContent = t;
+    typeFilter.appendChild(opt);
+  });
+}
+
+// Load questions based on type and difficulty
 async function loadQuestions() {
-  const filter = difficultyFilter.value;
-  let query = supabase
+  const type = typeFilter.value;
+  const difficulty = difficultyFilter.value;
+  if(!type || !difficulty) return;
+
+  const { data, error } = await supabase
     .from('game_questions')
     .select(`
       id,
@@ -63,13 +93,9 @@ async function loadQuestions() {
         is_correct
       )
     `)
+    .eq('type', type)
+    .eq('difficulty', difficulty)
     .order('created_at', { ascending: true });
-
-  if(filter) {
-    query = query.eq('difficulty', filter);
-  }
-
-  const { data, error } = await query;
 
   if(error) return alert(error.message);
 
@@ -81,7 +107,7 @@ async function loadQuestions() {
 
 function renderQuestion() {
   if(questions.length === 0){
-    quizContainer.innerHTML = 'No questions available for this difficulty.';
+    quizContainer.innerHTML = 'No questions available for this type/difficulty.';
     return;
   }
 
@@ -102,7 +128,6 @@ function renderQuestion() {
   `;
 }
 
-// Save current selections
 function saveAnswer() {
   const q = questions[currentIndex];
   const checkedOptions = [...quizContainer.querySelectorAll('input[type="checkbox"]:checked')]
@@ -111,19 +136,10 @@ function saveAnswer() {
 }
 
 // Navigation
-prevBtn.onclick = () => {
-  saveAnswer();
-  if(currentIndex > 0) currentIndex--;
-  renderQuestion();
-};
+prevBtn.onclick = () => { saveAnswer(); if(currentIndex > 0) currentIndex--; renderQuestion(); };
+nextBtn.onclick = () => { saveAnswer(); if(currentIndex < questions.length - 1) currentIndex++; renderQuestion(); };
 
-nextBtn.onclick = () => {
-  saveAnswer();
-  if(currentIndex < questions.length - 1) currentIndex++;
-  renderQuestion();
-};
-
-// Submit quiz
+// Submit
 submitBtn.onclick = () => {
   saveAnswer();
   let score = 0;
@@ -134,15 +150,18 @@ submitBtn.onclick = () => {
       score++;
     }
   });
-
   scoreContainer.innerHTML = `<h2>Your Score: ${score} / ${questions.length}</h2>`;
 };
 
-// Reload questions when difficulty changes
+// Enable difficulty only after type is selected
+typeFilter.onchange = () => {
+  difficultyFilter.disabled = !typeFilter.value;
+  loadQuestions();
+};
 difficultyFilter.onchange = loadQuestions;
 
-// Initialize
-loadQuestions();
+// Initialize types
+loadTypes();
 </script>
 
 </body>
