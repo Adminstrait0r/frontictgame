@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Login / Signup with Email Verification</title>
+<title>Login / Create Account</title>
 <style>
   body {
-    font-family: Arial;
+    font-family: Arial, sans-serif;
     max-width: 400px;
     margin: 50px auto;
   }
@@ -25,7 +25,7 @@
     margin-top: 10px;
   }
 
-  input[type="email"],
+  input[type="text"],
   input[type="password"] {
     width: 100%;
     padding: 8px;
@@ -56,49 +56,52 @@
 </head>
 <body>
 
-<h1>Login / Signup</h1>
+<h1>Login / Create Account</h1>
 
 <div class="form-container" id="authContainer">
-  <label for="email">Email</label>
-  <input type="email" id="email" placeholder="Enter your email" required>
+  <label for="username">Username</label>
+  <input type="text" id="username" placeholder="Enter username" required>
 
   <label for="password">Password</label>
-  <input type="password" id="password" placeholder="Enter your password" required>
+  <input type="password" id="password" placeholder="Enter password" required>
 
   <button id="authBtn">Login</button>
 
-  <div class="switch" id="switchMode">Don't have an account? Sign up</div>
+  <div class="switch" id="switchMode">Don't have an account? Create one</div>
   <div class="message" id="message"></div>
 </div>
 
 <script type="module">
 import { supabase } from './supabase.js';
 
-let isLogin = true; // toggle between login and signup
+let isLogin = true;
 
 const authBtn = document.getElementById('authBtn');
 const switchMode = document.getElementById('switchMode');
 const messageEl = document.getElementById('message');
-const emailInput = document.getElementById('email');
+const usernameInput = document.getElementById('username');
 const passwordInput = document.getElementById('password');
 
 switchMode.addEventListener('click', () => {
   isLogin = !isLogin;
-  authBtn.textContent = isLogin ? 'Login' : 'Sign Up';
+  authBtn.textContent = isLogin ? 'Login' : 'Create Account';
   switchMode.textContent = isLogin
-    ? "Don't have an account? Sign up"
+    ? "Don't have an account? Create one"
     : "Already have an account? Login";
   messageEl.textContent = '';
 });
 
 authBtn.addEventListener('click', async () => {
-  const email = emailInput.value.trim();
+  const username = usernameInput.value.trim();
   const password = passwordInput.value;
 
-  if (!email || !password) {
-    messageEl.textContent = 'Please enter both email and password.';
+  if (!username || !password) {
+    messageEl.textContent = 'Please enter both username and password.';
     return;
   }
+
+  // Supabase requires an email, use dummy
+  const email = `${username}@local`;
 
   try {
     if (isLogin) {
@@ -111,23 +114,37 @@ authBtn.addEventListener('click', async () => {
       if (error) throw error;
 
       messageEl.style.color = 'green';
-      messageEl.textContent = `Welcome back!`;
+      messageEl.textContent = `Welcome back, ${username}!`;
       console.log('Logged in user:', data.user);
+
     } else {
-      // SIGNUP with email verification
+      // SIGNUP
       const { data, error } = await supabase.auth.signUp({
         email,
-        password,
-        options: {
-          emailRedirectTo: window.location.origin // redirect after verification
-        }
+        password
       });
 
       if (error) throw error;
 
+      // Insert into users table with all required fields
+      const { error: dbError } = await supabase
+        .from('users')
+        .insert([{
+          auth_id: data.user.id,
+          username: username,
+          full_name: username,
+          total_stars: 0,
+          stars_per_type: {},
+          top_questions_per_type: {}
+        }])
+        .select()
+        .single();
+
+      if (dbError) throw dbError;
+
       messageEl.style.color = 'green';
-      messageEl.textContent = `Sign up successful! Please check your email to verify your account.`;
-      console.log('Signup data:', data.user);
+      messageEl.textContent = 'Account created successfully! You can now log in.';
+      console.log('Created user in DB:', data.user);
     }
   } catch (err) {
     console.error(err);
