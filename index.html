@@ -24,6 +24,11 @@
   <option value="">-- Select Type --</option>
 </select>
 
+<label for="levelFilter">Select Level:</label>
+<select id="levelFilter" disabled>
+  <option value="">-- Select Level --</option>
+</select>
+
 <label for="difficultyFilter">Select Difficulty:</label>
 <select id="difficultyFilter" disabled>
   <option value="">-- Select Difficulty --</option>
@@ -58,6 +63,7 @@ const nextBtn = document.getElementById('nextBtn');
 const submitBtn = document.getElementById('submitBtn');
 const scoreContainer = document.getElementById('scoreContainer');
 const typeFilter = document.getElementById('typeFilter');
+const levelFilter = document.getElementById('levelFilter');
 const difficultyFilter = document.getElementById('difficultyFilter');
 const timerDisplay = document.getElementById('timerDisplay');
 
@@ -65,7 +71,7 @@ const timerDisplay = document.getElementById('timerDisplay');
 async function loadTypes() {
   const { data, error } = await supabase
     .from('game_questions')
-    .select('type', { count: 'exact', head: false })
+    .select('type')
     .neq('type', '')
     .order('type', { ascending: true });
 
@@ -81,11 +87,37 @@ async function loadTypes() {
   });
 }
 
-// Load questions based on type & difficulty
+// Load levels based on type
+async function loadLevels() {
+  const type = typeFilter.value;
+  if(!type) return;
+
+  const { data, error } = await supabase
+    .from('game_questions')
+    .select('level')
+    .eq('type', type)
+    .order('level', { ascending: true });
+
+  if(error) return alert(error.message);
+
+  const levels = [...new Set(data.map(q => q.level))];
+  levelFilter.innerHTML = '<option value="">-- Select Level --</option>';
+  levels.forEach(l => {
+    const opt = document.createElement('option');
+    opt.value = l;
+    opt.textContent = `Level ${l}`;
+    levelFilter.appendChild(opt);
+  });
+  levelFilter.disabled = false;
+  difficultyFilter.disabled = true;
+}
+
+// Load questions based on type, level & difficulty
 async function loadQuestions() {
   const type = typeFilter.value;
+  const level = parseInt(levelFilter.value);
   const difficulty = difficultyFilter.value;
-  if(!type || !difficulty) return;
+  if(!type || !level || !difficulty) return;
 
   const { data, error } = await supabase
     .from('game_questions')
@@ -93,6 +125,7 @@ async function loadQuestions() {
       id,
       question_text,
       image_url,
+      level,
       difficulty,
       type,
       timer_seconds,
@@ -104,6 +137,7 @@ async function loadQuestions() {
       )
     `)
     .eq('type', type)
+    .eq('level', level)
     .eq('difficulty', difficulty)
     .order('created_at', { ascending: true });
 
@@ -131,7 +165,7 @@ function startTimer(seconds) {
 
 function renderQuestion() {
   if(questions.length === 0){
-    quizContainer.innerHTML = 'No questions available for this type/difficulty.';
+    quizContainer.innerHTML = 'No questions available for this type/level/difficulty.';
     timerDisplay.textContent = '';
     return;
   }
@@ -141,7 +175,7 @@ function renderQuestion() {
     <div class="question-container">
       <strong>Q${currentIndex + 1}: ${q.question_text}</strong> <br>
       ${q.image_url ? `<img src="${q.image_url}" class="question-image" />` : ''}
-      Difficulty: ${q.difficulty} | Type: ${q.type || ''} <br><br>
+      Level: ${q.level} | Difficulty: ${q.difficulty} | Type: ${q.type || ''} <br><br>
       ${q.game_question_options.map(o => `
         <div class="choice">
           <label>
@@ -204,8 +238,11 @@ nextBtn.onclick = nextQuestion;
 submitBtn.onclick = submitQuiz;
 
 typeFilter.onchange = () => {
-  difficultyFilter.disabled = !typeFilter.value;
-  loadQuestions();
+  loadLevels();
+  difficultyFilter.disabled = true;
+};
+levelFilter.onchange = () => {
+  difficultyFilter.disabled = false;
 };
 difficultyFilter.onchange = loadQuestions;
 
