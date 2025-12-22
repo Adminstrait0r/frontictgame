@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Login / Signup with Email Verification</title>
+<title>Browser Game Login / Signup</title>
 <style>
   body {
     font-family: Arial;
@@ -89,6 +89,7 @@ switchMode.addEventListener('click', () => {
     ? "Don't have an account? Sign up"
     : "Already have an account? Login";
   messageEl.textContent = '';
+  messageEl.style.color = 'red';
 });
 
 authBtn.addEventListener('click', async () => {
@@ -103,13 +104,10 @@ authBtn.addEventListener('click', async () => {
   try {
     if (isLogin) {
       // LOGIN
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      });
-
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
 
+      // Check email verification
       if (!data.user.email_confirmed_at) {
         messageEl.style.color = 'orange';
         messageEl.textContent = 'Please verify your email before logging in.';
@@ -117,8 +115,11 @@ authBtn.addEventListener('click', async () => {
       }
 
       messageEl.style.color = 'green';
-      messageEl.textContent = `Welcome back!`;
+      messageEl.textContent = `Welcome back, ${data.user.email}!`;
       console.log('Logged in user:', data.user);
+
+      // TODO: redirect to game page or leaderboard
+      // window.location.href = '/game.html';
 
     } else {
       // SIGNUP
@@ -126,10 +127,9 @@ authBtn.addEventListener('click', async () => {
         email,
         password,
         options: {
-          emailRedirectTo: window.location.origin // redirect after verification
+          emailRedirectTo: window.location.origin // change to deployed URL in production
         }
       });
-
       if (error) throw error;
 
       messageEl.style.color = 'green';
