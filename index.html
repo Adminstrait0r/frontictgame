@@ -10,6 +10,7 @@
   button { margin-top: 10px; }
   select { margin-bottom: 20px; margin-right: 10px; }
   #timerDisplay { font-weight: bold; color: red; margin-bottom: 10px; }
+  img.question-image { max-width: 300px; max-height: 200px; display:block; margin:10px 0; }
 </style>
 </head>
 <body>
@@ -89,6 +90,7 @@ async function loadQuestions() {
     .select(`
       id,
       question_text,
+      image_url,
       difficulty,
       type,
       timer_seconds,
@@ -135,6 +137,7 @@ function renderQuestion() {
   quizContainer.innerHTML = `
     <div class="question-container">
       <strong>Q${currentIndex + 1}: ${q.question_text}</strong> <br>
+      ${q.image_url ? `<img src="${q.image_url}" class="question-image" />` : ''}
       Difficulty: ${q.difficulty} | Type: ${q.type || ''} <br><br>
       ${q.game_question_options.map(o => `
         <div class="choice">
