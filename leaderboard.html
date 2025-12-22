@@ -1,68 +1,53 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Leaderboard</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta charset="UTF-8">
+<title>Leaderboard</title>
 
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #0f172a;
-      color: #e5e7eb;
-      padding: 20px;
-    }
+<style>
+  body {
+    font-family: Arial;
+    max-width: 700px;
+    margin: 20px;
+  }
 
-    h1 {
-      text-align: center;
-      margin-bottom: 20px;
-    }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+  }
 
-    table {
-      width: 100%;
-      max-width: 800px;
-      margin: auto;
-      border-collapse: collapse;
-      background: #020617;
-      border-radius: 8px;
-      overflow: hidden;
-    }
+  th, td {
+    border-bottom: 1px solid #ccc;
+    padding: 10px;
+    text-align: left;
+  }
 
-    th, td {
-      padding: 12px;
-      text-align: left;
-    }
+  th {
+    background: #f2f2f2;
+  }
 
-    th {
-      background: #1e293b;
-      font-size: 12px;
-      text-transform: uppercase;
-    }
+  .rank-cell {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
 
-    tr:nth-child(even) {
-      background: #020617;
-    }
+  .rank-cell img {
+    width: 30px;
+    height: 30px;
+    object-fit: contain;
+  }
 
-    .center {
-      text-align: center;
-    }
-
-    .rank {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .rank img {
-      width: 28px;
-      height: 28px;
-      object-fit: contain;
-    }
-  </style>
+  .center {
+    text-align: center;
+  }
+</style>
 </head>
+
 <body>
 
-<h1>🏆 Leaderboard</h1>
+<h1>Leaderboard</h1>
 
 <table>
   <thead>
@@ -74,7 +59,7 @@
       <th class="center">Total Stars</th>
     </tr>
   </thead>
-  <tbody id="leaderboard">
+  <tbody id="leaderboardBody">
     <tr>
       <td colspan="5" class="center">Loading...</td>
     </tr>
@@ -82,53 +67,62 @@
 </table>
 
 <script type="module">
-  import { supabase } from "./supabase.js";
+import { supabase } from './supabase.js';
 
-  async function loadLeaderboard() {
-    const { data, error } = await supabase
-      .from("users")
-      .select(`
-        id,
-        full_name,
-        total_stars,
-        ranks (
-          rank_name,
-          rank_image,
-          stars
-        )
-      `)
-      .order("total_stars", { ascending: false });
+const leaderboardBody = document.getElementById('leaderboardBody');
 
-    const tbody = document.getElementById("leaderboard");
-    tbody.innerHTML = "";
+async function loadLeaderboard() {
+  const { data, error } = await supabase
+    .from('users')
+    .select(`
+      id,
+      full_name,
+      total_stars,
+      ranks (
+        rank_name,
+        rank_image,
+        stars
+      )
+    `)
+    .order('total_stars', { ascending: false });
 
-    if (error) {
-      console.error(error);
-      tbody.innerHTML = "<tr><td colspan='5'>Error loading leaderboard</td></tr>";
-      return;
-    }
+  leaderboardBody.innerHTML = '';
 
-    data.forEach((user, index) => {
-      const rank = user.ranks || {};
-
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${index + 1}</td>
-        <td>${user.full_name}</td>
-        <td>
-          <div class="rank">
-            ${rank.rank_image ? `<img src="${rank.rank_image}">` : ""}
-            ${rank.rank_name || "Unranked"}
-          </div>
-        </td>
-        <td class="center">${rank.stars ?? 0}</td>
-        <td class="center">${user.total_stars ?? 0}</td>
-      `;
-      tbody.appendChild(tr);
-    });
+  if (error) {
+    console.error(error);
+    leaderboardBody.innerHTML =
+      '<tr><td colspan="5">Failed to load leaderboard</td></tr>';
+    return;
   }
 
-  loadLeaderboard();
+  if (data.length === 0) {
+    leaderboardBody.innerHTML =
+      '<tr><td colspan="5">No players yet</td></tr>';
+    return;
+  }
+
+  data.forEach((user, index) => {
+    const rank = user.ranks || {};
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${index + 1}</td>
+      <td>${user.full_name}</td>
+      <td>
+        <div class="rank-cell">
+          ${rank.rank_image ? `<img src="${rank.rank_image}">` : ''}
+          ${rank.rank_name || 'Unranked'}
+        </div>
+      </td>
+      <td class="center">${rank.stars ?? 0}</td>
+      <td class="center">${user.total_stars ?? 0}</td>
+    `;
+
+    leaderboardBody.appendChild(tr);
+  });
+}
+
+loadLeaderboard();
 </script>
 
 </body>
