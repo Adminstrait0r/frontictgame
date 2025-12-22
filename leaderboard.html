@@ -80,11 +80,12 @@ import { supabase } from './supabase.js';
 const leaderboardBody = document.getElementById('leaderboardBody');
 
 async function loadLeaderboard() {
+  // Fetch users and ranks
   const { data: users, error } = await supabase
-    .from('users')
+    .from('users_game') // adjust to your table name
     .select(`
       id,
-      full_name,
+      username,
       total_stars,
       top_questions_per_type,
       ranks (
@@ -116,17 +117,17 @@ async function loadLeaderboard() {
     const topTypes = Object.entries(types)
       .map(([type, levels]) => {
         const lvArray = Array.isArray(levels) ? levels : [levels];
-        lvArray.sort((a, b) => b - a); // sort highest first
+        lvArray.sort((a, b) => b - a);
         return { type, lvArray };
       })
-      .sort((a, b) => b.lvArray[0] - a.lvArray[0]) // top type first
-      .slice(0, 3) // take top 3 types
+      .sort((a, b) => b.lvArray[0] - a.lvArray[0])
+      .slice(0, 3)
       .map(t => `${t.type}: Lv ${t.lvArray.join(', ')}`);
 
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${index + 1}</td>
-      <td>${user.full_name}</td>
+      <td>${user.username}</td>
       <td>
         <div class="rank-cell">
           ${rank.rank_image ? `<img src="${rank.rank_image}">` : ''}
