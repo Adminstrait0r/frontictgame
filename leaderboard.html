@@ -45,9 +45,9 @@
   }
 
   .type-list {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
+    margin: 0;
+    padding-left: 20px;
+    list-style-type: disc;
   }
 </style>
 </head>
@@ -80,7 +80,6 @@ import { supabase } from './supabase.js';
 const leaderboardBody = document.getElementById('leaderboardBody');
 
 async function loadLeaderboard() {
-  // Load users with ranks
   const { data: users, error } = await supabase
     .from('users')
     .select(`
@@ -113,10 +112,16 @@ async function loadLeaderboard() {
     const rank = user.ranks || {};
     const types = user.top_questions_per_type || {};
 
-    // Convert JSONB top_questions_per_type to array of top 3 per type
+    // Convert each type to array and sort descending by highest level
     const topTypes = Object.entries(types)
-      .map(([type, levels]) => `${type}: Lv ${levels.join(', ')}`)
-      .slice(0, 3); // show only top 3 types
+      .map(([type, levels]) => {
+        const lvArray = Array.isArray(levels) ? levels : [levels];
+        lvArray.sort((a, b) => b - a); // sort highest first
+        return { type, lvArray };
+      })
+      .sort((a, b) => b.lvArray[0] - a.lvArray[0]) // top type first
+      .slice(0, 3) // take top 3 types
+      .map(t => `${t.type}: Lv ${t.lvArray.join(', ')}`);
 
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -130,7 +135,11 @@ async function loadLeaderboard() {
       </td>
       <td class="center">${rank.stars ?? 0}</td>
       <td class="center">${user.total_stars ?? 0}</td>
-      <td class="type-list">${topTypes.join('<br>')}</td>
+      <td>
+        <ul class="type-list">
+          ${topTypes.map(t => `<li>${t}</li>`).join('')}
+        </ul>
+      </td>
     `;
     leaderboardBody.appendChild(tr);
   });
