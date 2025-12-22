@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Login / Signup with Email Verification</title>
+<style>
+  body {
+    font-family: Arial;
+    max-width: 400px;
+    margin: 50px auto;
+  }
+
+  h1 {
+    text-align: center;
+  }
+
+  .form-container {
+    border: 1px solid #ccc;
+    padding: 20px;
+    border-radius: 10px;
+  }
+
+  label {
+    display: block;
+    margin-top: 10px;
+  }
+
+  input[type="email"],
+  input[type="password"] {
+    width: 100%;
+    padding: 8px;
+    margin-top: 4px;
+    box-sizing: border-box;
+  }
+
+  button {
+    margin-top: 15px;
+    padding: 10px;
+    width: 100%;
+    cursor: pointer;
+  }
+
+  .switch {
+    margin-top: 10px;
+    text-align: center;
+    color: blue;
+    cursor: pointer;
+  }
+
+  .message {
+    margin-top: 10px;
+    text-align: center;
+    color: red;
+  }
+</style>
+</head>
+<body>
+
+<h1>Login / Signup</h1>
+
+<div class="form-container" id="authContainer">
+  <label for="email">Email</label>
+  <input type="email" id="email" placeholder="Enter your email" required>
+
+  <label for="password">Password</label>
+  <input type="password" id="password" placeholder="Enter your password" required>
+
+  <button id="authBtn">Login</button>
+
+  <div class="switch" id="switchMode">Don't have an account? Sign up</div>
+  <div class="message" id="message"></div>
+</div>
+
+<script type="module">
+import { supabase } from './supabase.js';
+
+let isLogin = true; // toggle between login and signup
+
+const authBtn = document.getElementById('authBtn');
+const switchMode = document.getElementById('switchMode');
+const messageEl = document.getElementById('message');
+const emailInput = document.getElementById('email');
+const passwordInput = document.getElementById('password');
+
+switchMode.addEventListener('click', () => {
+  isLogin = !isLogin;
+  authBtn.textContent = isLogin ? 'Login' : 'Sign Up';
+  switchMode.textContent = isLogin
+    ? "Don't have an account? Sign up"
+    : "Already have an account? Login";
+  messageEl.textContent = '';
+});
+
+authBtn.addEventListener('click', async () => {
+  const email = emailInput.value.trim();
+  const password = passwordInput.value;
+
+  if (!email || !password) {
+    messageEl.textContent = 'Please enter both email and password.';
+    return;
+  }
+
+  try {
+    if (isLogin) {
+      // LOGIN
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (error) throw error;
+
+      messageEl.style.color = 'green';
+      messageEl.textContent = `Welcome back!`;
+      console.log('Logged in user:', data.user);
+    } else {
+      // SIGNUP with email verification
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: window.location.origin // redirect after verification
+        }
+      });
+
+      if (error) throw error;
+
+      messageEl.style.color = 'green';
+      messageEl.textContent = `Sign up successful! Please check your email to verify your account.`;
+      console.log('Signup data:', data.user);
+    }
+  } catch (err) {
+    console.error(err);
+    messageEl.style.color = 'red';
+    messageEl.textContent = err.message || 'An error occurred.';
+  }
+});
+</script>
+
+</body>
+</html>
