@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Quiz User Side</title>
+<style>
+  body { font-family: Arial; max-width: 700px; margin: 20px; }
+  .question-container { margin-bottom: 20px; }
+  .choice { display:flex; gap:10px; margin-bottom:5px; align-items:center; }
+  button { margin-top: 10px; }
+</style>
+</head>
+<body>
+
+<h1>Quiz</h1>
+
+<div id="quizContainer"></div>
+
+<div>
+  <button id="prevBtn">⬅ Previous</button>
+  <button id="nextBtn">Next ➡</button>
+  <button id="submitBtn">Submit Quiz</button>
+</div>
+
+<div id="scoreContainer" style="margin-top:20px;"></div>
+
+<script type="module">
+import { supabase } from './supabase.js';
+
+let questions = [];
+let currentIndex = 0;
+let userAnswers = {}; // { question_id: [selected option ids] }
+
+const quizContainer = document.getElementById('quizContainer');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const submitBtn = document.getElementById('submitBtn');
+const scoreContainer = document.getElementById('scoreContainer');
+
+// Load questions from Supabase
+async function loadQuestions() {
+  const { data, error } = await supabase
+    .from('game_questions')
+    .select(`
+      id,
+      question_text,
+      difficulty,
+      type,
+      game_question_options (
+        id,
+        option_text,
+        is_correct
+      )
+    `)
+    .order('created_at', { ascending: true });
+
+  if(error) return alert(error.message);
+
+  questions = data;
+  currentIndex = 0;
+  userAnswers = {};
+  renderQuestion();
+}
+
+function renderQuestion() {
+  if(questions.length === 0){
+    quizContainer.innerHTML = 'No questions available.';
+    return;
+  }
+
+  const q = questions[currentIndex];
+  quizContainer.innerHTML = `
+    <div class="question-container">
+      <strong>Q${currentIndex + 1}: ${q.question_text}</strong> <br>
+      Difficulty: ${q.difficulty} | Type: ${q.type || ''} <br><br>
+      ${q.game_question_options.map(o => `
+        <div class="choice">
+          <label>
+            <input type="checkbox" value="${o.id}" ${userAnswers[q.id]?.includes(o.id) ? 'checked' : ''} />
+            ${o.option_text}
+          </label>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+// Save current selections
+function saveAnswer() {
+  const q = questions[currentIndex];
+  const checkedOptions = [...quizContainer.querySelectorAll('input[type="checkbox"]:checked')]
+    .map(input => input.value);
+  userAnswers[q.id] = checkedOptions;
+}
+
+// Navigation
+prevBtn.onclick = () => {
+  saveAnswer();
+  if(currentIndex > 0) currentIndex--;
+  renderQuestion();
+};
+
+nextBtn.onclick = () => {
+  saveAnswer();
+  if(currentIndex < questions.length - 1) currentIndex++;
+  renderQuestion();
+};
+
+// Submit quiz
+submitBtn.onclick = () => {
+  saveAnswer();
+  let score = 0;
+  questions.forEach(q => {
+    const correctOptions = q.game_question_options.filter(o => o.is_correct).map(o => o.id);
+    const selected = userAnswers[q.id] || [];
+    // Check if arrays match
+    if(correctOptions.length === selected.length && correctOptions.every(id => selected.includes(id))){
+      score++;
+    }
+  });
+
+  scoreContainer.innerHTML = `<h2>Your Score: ${score} / ${questions.length}</h2>`;
+};
+
+loadQuestions();
+</script>
+
+</body>
+</html>
