@@ -4,60 +4,19 @@
 <meta charset="UTF-8">
 <title>Browser Game Login / Signup</title>
 <style>
-  body {
-    font-family: Arial;
-    max-width: 400px;
-    margin: 50px auto;
-  }
-
-  h1 {
-    text-align: center;
-  }
-
-  .form-container {
-    border: 1px solid #ccc;
-    padding: 20px;
-    border-radius: 10px;
-  }
-
-  label {
-    display: block;
-    margin-top: 10px;
-  }
-
-  input[type="text"],
-  input[type="password"] {
-    width: 100%;
-    padding: 8px;
-    margin-top: 4px;
-    box-sizing: border-box;
-  }
-
-  button {
-    margin-top: 15px;
-    padding: 10px;
-    width: 100%;
-    cursor: pointer;
-  }
-
-  .switch {
-    margin-top: 10px;
-    text-align: center;
-    color: blue;
-    cursor: pointer;
-  }
-
-  .message {
-    margin-top: 10px;
-    text-align: center;
-    color: red;
-  }
+  body { font-family: Arial; max-width: 400px; margin: 50px auto; }
+  h1 { text-align: center; }
+  .form-container { border: 1px solid #ccc; padding: 20px; border-radius: 10px; }
+  label { display: block; margin-top: 10px; }
+  input[type="text"], input[type="password"] { width: 100%; padding: 8px; margin-top: 4px; box-sizing: border-box; }
+  button { margin-top: 15px; padding: 10px; width: 100%; cursor: pointer; }
+  .switch { margin-top: 10px; text-align: center; color: blue; cursor: pointer; }
+  .message { margin-top: 10px; text-align: center; color: red; }
 </style>
 </head>
 <body>
 
 <h1>Login / Signup</h1>
-
 <div class="form-container" id="authContainer">
   <label for="username">Username</label>
   <input type="text" id="username" placeholder="Enter your username" required>
@@ -66,7 +25,6 @@
   <input type="password" id="password" placeholder="Enter your password" required>
 
   <button id="authBtn">Login</button>
-
   <div class="switch" id="switchMode">Don't have an account? Sign up</div>
   <div class="message" id="message"></div>
 </div>
@@ -75,7 +33,6 @@
 import { supabase } from './supabase.js';
 
 const DEPLOYED_URL = 'https://frontictgame-git-main-noahs-projects-d293e9b7.vercel.app';
-
 let isLogin = true;
 
 const authBtn = document.getElementById('authBtn');
@@ -106,24 +63,18 @@ authBtn.addEventListener('click', async () => {
   try {
     if (isLogin) {
       // LOGIN
-      const { data, error } = await supabase
-        .from('users')
+      const { data: user, error } = await supabase
+        .from('users_game')
         .select('*')
         .eq('username', username)
         .single();
 
-      if (error || !data) {
+      if (error || !user) {
         messageEl.textContent = 'User not found.';
         return;
       }
 
-      // Verify password
-      const { data: authData, error: authError } = await supabase.rpc('verify_password', {
-        _username: username,
-        _password: password
-      });
-
-      if (authError || !authData.valid) {
+      if (user.password_hash !== password) {
         messageEl.textContent = 'Incorrect password.';
         return;
       }
@@ -135,7 +86,7 @@ authBtn.addEventListener('click', async () => {
     } else {
       // SIGNUP
       const { data: existingUser } = await supabase
-        .from('users')
+        .from('users_game')
         .select('id')
         .eq('username', username)
         .single();
@@ -145,8 +96,8 @@ authBtn.addEventListener('click', async () => {
         return;
       }
 
-      const { data, error } = await supabase
-        .from('users')
+      const { error } = await supabase
+        .from('users_game')
         .insert([{ username, password_hash: password }]);
 
       if (error) throw error;
