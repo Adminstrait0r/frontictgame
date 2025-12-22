@@ -2,252 +2,139 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Quiz User Side</title>
+<title>Login / Signup with Email Verification</title>
 <style>
-  body { font-family: Arial; max-width: 700px; margin: 20px; }
-  .question-container { margin-bottom: 20px; }
-  .choice { display:flex; flex-direction: column; gap:5px; margin-bottom:10px; }
-  .choice label { display:flex; align-items:center; gap:10px; }
-  button { margin-top: 10px; }
-  select { margin-bottom: 20px; margin-right: 10px; }
-  #timerDisplay { font-weight: bold; color: red; margin-bottom: 10px; }
-  img.question-image { max-width: 300px; max-height: 200px; display:block; margin:10px 0; }
-  img.choice-image { max-width: 200px; max-height: 150px; display:block; margin-left:20px; }
+  body {
+    font-family: Arial;
+    max-width: 400px;
+    margin: 50px auto;
+  }
+
+  h1 {
+    text-align: center;
+  }
+
+  .form-container {
+    border: 1px solid #ccc;
+    padding: 20px;
+    border-radius: 10px;
+  }
+
+  label {
+    display: block;
+    margin-top: 10px;
+  }
+
+  input[type="email"],
+  input[type="password"] {
+    width: 100%;
+    padding: 8px;
+    margin-top: 4px;
+    box-sizing: border-box;
+  }
+
+  button {
+    margin-top: 15px;
+    padding: 10px;
+    width: 100%;
+    cursor: pointer;
+  }
+
+  .switch {
+    margin-top: 10px;
+    text-align: center;
+    color: blue;
+    cursor: pointer;
+  }
+
+  .message {
+    margin-top: 10px;
+    text-align: center;
+    color: red;
+  }
 </style>
 </head>
 <body>
 
-<h1>Quiz</h1>
+<h1>Login / Signup</h1>
 
-<label for="typeFilter">Select Type:</label>
-<select id="typeFilter">
-  <option value="">-- Select Type --</option>
-</select>
+<div class="form-container" id="authContainer">
+  <label for="email">Email</label>
+  <input type="email" id="email" placeholder="Enter your email" required>
 
-<label for="levelFilter">Select Level:</label>
-<select id="levelFilter" disabled>
-  <option value="">-- Select Level --</option>
-</select>
+  <label for="password">Password</label>
+  <input type="password" id="password" placeholder="Enter your password" required>
 
-<label for="difficultyFilter">Select Difficulty:</label>
-<select id="difficultyFilter" disabled>
-  <option value="">-- Select Difficulty --</option>
-  <option value="easy">Easy</option>
-  <option value="medium">Medium</option>
-  <option value="hard">Hard</option>
-</select>
+  <button id="authBtn">Login</button>
 
-<div id="timerDisplay"></div>
-<div id="quizContainer"></div>
-
-<div>
-  <button id="prevBtn">⬅ Previous</button>
-  <button id="nextBtn">Next ➡</button>
-  <button id="submitBtn">Submit Quiz</button>
+  <div class="switch" id="switchMode">Don't have an account? Sign up</div>
+  <div class="message" id="message"></div>
 </div>
-
-<div id="scoreContainer" style="margin-top:20px;"></div>
 
 <script type="module">
 import { supabase } from './supabase.js';
 
-let questions = [];
-let currentIndex = 0;
-let userAnswers = {}; // { question_id: [selected option ids] }
-let timerInterval;
-let timeLeft = 0;
+let isLogin = true; // toggle between login and signup
 
-const quizContainer = document.getElementById('quizContainer');
-const prevBtn = document.getElementById('prevBtn');
-const nextBtn = document.getElementById('nextBtn');
-const submitBtn = document.getElementById('submitBtn');
-const scoreContainer = document.getElementById('scoreContainer');
-const typeFilter = document.getElementById('typeFilter');
-const levelFilter = document.getElementById('levelFilter');
-const difficultyFilter = document.getElementById('difficultyFilter');
-const timerDisplay = document.getElementById('timerDisplay');
+const authBtn = document.getElementById('authBtn');
+const switchMode = document.getElementById('switchMode');
+const messageEl = document.getElementById('message');
+const emailInput = document.getElementById('email');
+const passwordInput = document.getElementById('password');
 
-// Load distinct types
-async function loadTypes() {
-  const { data, error } = await supabase
-    .from('game_questions')
-    .select('type')
-    .neq('type', '')
-    .order('type', { ascending: true });
+switchMode.addEventListener('click', () => {
+  isLogin = !isLogin;
+  authBtn.textContent = isLogin ? 'Login' : 'Sign Up';
+  switchMode.textContent = isLogin
+    ? "Don't have an account? Sign up"
+    : "Already have an account? Login";
+  messageEl.textContent = '';
+});
 
-  if(error) return alert(error.message);
+authBtn.addEventListener('click', async () => {
+  const email = emailInput.value.trim();
+  const password = passwordInput.value;
 
-  const types = [...new Set(data.map(q => q.type))];
-  typeFilter.innerHTML = '<option value="">-- Select Type --</option>';
-  types.forEach(t => {
-    const opt = document.createElement('option');
-    opt.value = t;
-    opt.textContent = t;
-    typeFilter.appendChild(opt);
-  });
-}
-
-// Load levels based on type
-async function loadLevels() {
-  const type = typeFilter.value;
-  if(!type) return;
-
-  const { data, error } = await supabase
-    .from('game_questions')
-    .select('level')
-    .eq('type', type)
-    .order('level', { ascending: true });
-
-  if(error) return alert(error.message);
-
-  const levels = [...new Set(data.map(q => q.level))];
-  levelFilter.innerHTML = '<option value="">-- Select Level --</option>';
-  levels.forEach(l => {
-    const opt = document.createElement('option');
-    opt.value = l;
-    opt.textContent = `Level ${l}`;
-    levelFilter.appendChild(opt);
-  });
-  levelFilter.disabled = false;
-  difficultyFilter.disabled = true;
-}
-
-// Load questions based on type, level & difficulty
-async function loadQuestions() {
-  const type = typeFilter.value;
-  const level = parseInt(levelFilter.value);
-  const difficulty = difficultyFilter.value;
-  if(!type || !level || !difficulty) return;
-
-  const { data, error } = await supabase
-    .from('game_questions')
-    .select(`
-      id,
-      question_text,
-      image_url,
-      level,
-      difficulty,
-      type,
-      timer_seconds,
-      game_question_options (
-        id,
-        option_text,
-        image_url,
-        is_correct
-      )
-    `)
-    .eq('type', type)
-    .eq('level', level)
-    .eq('difficulty', difficulty)
-    .order('created_at', { ascending: true });
-
-  if(error) return alert(error.message);
-
-  questions = data;
-  currentIndex = 0;
-  userAnswers = {};
-  renderQuestion();
-}
-
-function startTimer(seconds) {
-  clearInterval(timerInterval);
-  timeLeft = seconds;
-  timerDisplay.textContent = `Time left: ${timeLeft} sec`;
-  timerInterval = setInterval(() => {
-    timeLeft--;
-    timerDisplay.textContent = `Time left: ${timeLeft} sec`;
-    if(timeLeft <= 0){
-      clearInterval(timerInterval);
-      nextQuestion();
-    }
-  }, 1000);
-}
-
-function renderQuestion() {
-  if(questions.length === 0){
-    quizContainer.innerHTML = 'No questions available for this type/level/difficulty.';
-    timerDisplay.textContent = '';
+  if (!email || !password) {
+    messageEl.textContent = 'Please enter both email and password.';
     return;
   }
 
-  const q = questions[currentIndex];
-  quizContainer.innerHTML = `
-    <div class="question-container">
-      <strong>Q${currentIndex + 1}: ${q.question_text}</strong> <br>
-      ${q.image_url ? `<img src="${q.image_url}" class="question-image" />` : ''}
-      Level: ${q.level} | Difficulty: ${q.difficulty} | Type: ${q.type || ''} <br><br>
-      ${q.game_question_options.map(o => `
-        <div class="choice">
-          <label>
-            <input type="checkbox" value="${o.id}" ${userAnswers[q.id]?.includes(o.id) ? 'checked' : ''} />
-            ${o.option_text}
-          </label>
-          ${o.image_url ? `<img src="${o.image_url}" class="choice-image" />` : ''}
-        </div>
-      `).join('')}
-    </div>
-  `;
+  try {
+    if (isLogin) {
+      // LOGIN
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
 
-  startTimer(q.timer_seconds || 30);
-}
+      if (error) throw error;
 
-function saveAnswer() {
-  const q = questions[currentIndex];
-  const checkedOptions = [...quizContainer.querySelectorAll('input[type="checkbox"]:checked')]
-    .map(input => input.value);
-  userAnswers[q.id] = checkedOptions;
-}
+      messageEl.style.color = 'green';
+      messageEl.textContent = `Welcome back!`;
+      console.log('Logged in user:', data.user);
+    } else {
+      // SIGNUP with email verification
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: window.location.origin // redirect after verification
+        }
+      });
 
-function nextQuestion() {
-  saveAnswer();
-  if(currentIndex < questions.length - 1) {
-    currentIndex++;
-    renderQuestion();
-  } else {
-    submitQuiz();
-  }
-}
+      if (error) throw error;
 
-function prevQuestion() {
-  saveAnswer();
-  if(currentIndex > 0) {
-    currentIndex--;
-    renderQuestion();
-  }
-}
-
-function submitQuiz() {
-  saveAnswer();
-  clearInterval(timerInterval);
-  let score = 0;
-  questions.forEach(q => {
-    const correctOptions = q.game_question_options.filter(o => o.is_correct).map(o => o.id);
-    const selected = userAnswers[q.id] || [];
-    if(correctOptions.length === selected.length && correctOptions.every(id => selected.includes(id))){
-      score++;
+      messageEl.style.color = 'green';
+      messageEl.textContent = `Sign up successful! Please check your email to verify your account.`;
+      console.log('Signup data:', data.user);
     }
-  });
-  quizContainer.innerHTML = '';
-  timerDisplay.textContent = '';
-  scoreContainer.innerHTML = `<h2>Your Score: ${score} / ${questions.length}</h2>`;
-}
-
-// Event listeners
-prevBtn.onclick = prevQuestion;
-nextBtn.onclick = nextQuestion;
-submitBtn.onclick = submitQuiz;
-
-typeFilter.onchange = () => {
-  loadLevels();
-  difficultyFilter.disabled = true;
-};
-levelFilter.onchange = () => {
-  difficultyFilter.disabled = false;
-};
-difficultyFilter.onchange = loadQuestions;
-
-// Initialize types
-loadTypes();
+  } catch (err) {
+    console.error(err);
+    messageEl.style.color = 'red';
+    messageEl.textContent = err.message || 'An error occurred.';
+  }
+});
 </script>
 
 </body>
