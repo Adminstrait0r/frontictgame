@@ -87,7 +87,7 @@ async function loadLeaderboard() {
       id,
       full_name,
       total_stars,
-      stars_per_type,
+      top_questions_per_type,
       ranks (
         rank_name,
         rank_image,
@@ -111,13 +111,12 @@ async function loadLeaderboard() {
 
   users.forEach((user, index) => {
     const rank = user.ranks || {};
-    const types = user.stars_per_type || {};
+    const types = user.top_questions_per_type || {};
 
-    // Get top 3 types by stars (or levels if you want)
+    // Convert JSONB top_questions_per_type to array of top 3 per type
     const topTypes = Object.entries(types)
-      .sort((a, b) => b[1] - a[1])  // descending
-      .slice(0, 3)
-      .map(([type, levelOrStars]) => `${type}: Lv ${levelOrStars}`);
+      .map(([type, levels]) => `${type}: Lv ${levels.join(', ')}`)
+      .slice(0, 3); // show only top 3 types
 
     const tr = document.createElement('tr');
     tr.innerHTML = `
