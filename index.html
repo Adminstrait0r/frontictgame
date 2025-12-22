@@ -8,11 +8,20 @@
   .question-container { margin-bottom: 20px; }
   .choice { display:flex; gap:10px; margin-bottom:5px; align-items:center; }
   button { margin-top: 10px; }
+  select { margin-bottom: 20px; }
 </style>
 </head>
 <body>
 
 <h1>Quiz</h1>
+
+<label for="difficultyFilter">Select Difficulty:</label>
+<select id="difficultyFilter">
+  <option value="">All</option>
+  <option value="easy">Easy</option>
+  <option value="medium">Medium</option>
+  <option value="hard">Hard</option>
+</select>
 
 <div id="quizContainer"></div>
 
@@ -36,10 +45,12 @@ const prevBtn = document.getElementById('prevBtn');
 const nextBtn = document.getElementById('nextBtn');
 const submitBtn = document.getElementById('submitBtn');
 const scoreContainer = document.getElementById('scoreContainer');
+const difficultyFilter = document.getElementById('difficultyFilter');
 
-// Load questions from Supabase
+// Load questions from Supabase based on selected difficulty
 async function loadQuestions() {
-  const { data, error } = await supabase
+  const filter = difficultyFilter.value;
+  let query = supabase
     .from('game_questions')
     .select(`
       id,
@@ -54,6 +65,12 @@ async function loadQuestions() {
     `)
     .order('created_at', { ascending: true });
 
+  if(filter) {
+    query = query.eq('difficulty', filter);
+  }
+
+  const { data, error } = await query;
+
   if(error) return alert(error.message);
 
   questions = data;
@@ -64,7 +81,7 @@ async function loadQuestions() {
 
 function renderQuestion() {
   if(questions.length === 0){
-    quizContainer.innerHTML = 'No questions available.';
+    quizContainer.innerHTML = 'No questions available for this difficulty.';
     return;
   }
 
@@ -113,7 +130,6 @@ submitBtn.onclick = () => {
   questions.forEach(q => {
     const correctOptions = q.game_question_options.filter(o => o.is_correct).map(o => o.id);
     const selected = userAnswers[q.id] || [];
-    // Check if arrays match
     if(correctOptions.length === selected.length && correctOptions.every(id => selected.includes(id))){
       score++;
     }
@@ -122,6 +138,10 @@ submitBtn.onclick = () => {
   scoreContainer.innerHTML = `<h2>Your Score: ${score} / ${questions.length}</h2>`;
 };
 
+// Reload questions when difficulty changes
+difficultyFilter.onchange = loadQuestions;
+
+// Initialize
 loadQuestions();
 </script>
 
