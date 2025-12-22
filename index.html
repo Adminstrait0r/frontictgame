@@ -6,11 +6,13 @@
 <style>
   body { font-family: Arial; max-width: 700px; margin: 20px; }
   .question-container { margin-bottom: 20px; }
-  .choice { display:flex; gap:10px; margin-bottom:5px; align-items:center; }
+  .choice { display:flex; flex-direction: column; gap:5px; margin-bottom:10px; }
+  .choice label { display:flex; align-items:center; gap:10px; }
   button { margin-top: 10px; }
   select { margin-bottom: 20px; margin-right: 10px; }
   #timerDisplay { font-weight: bold; color: red; margin-bottom: 10px; }
   img.question-image { max-width: 300px; max-height: 200px; display:block; margin:10px 0; }
+  img.choice-image { max-width: 200px; max-height: 150px; display:block; margin-left:20px; }
 </style>
 </head>
 <body>
@@ -97,6 +99,7 @@ async function loadQuestions() {
       game_question_options (
         id,
         option_text,
+        image_url,
         is_correct
       )
     `)
@@ -145,6 +148,7 @@ function renderQuestion() {
             <input type="checkbox" value="${o.id}" ${userAnswers[q.id]?.includes(o.id) ? 'checked' : ''} />
             ${o.option_text}
           </label>
+          ${o.image_url ? `<img src="${o.image_url}" class="choice-image" />` : ''}
         </div>
       `).join('')}
     </div>
