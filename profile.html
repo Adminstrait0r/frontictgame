@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>User Profile</title>
+<style>
+  body { font-family: Arial, sans-serif; background:#111; color:#fff; }
+  .profile { max-width: 500px; margin: 40px auto; padding: 20px; background:#1c1c1c; border-radius:10px; }
+  .rank img { width:80px; }
+  .stat { display:flex; justify-content:space-between; margin:6px 0; }
+  .progress { background:#333; border-radius:10px; overflow:hidden; }
+  .bar { height:10px; background:#4caf50; }
+</style>
+</head>
+<body>
+
+<div class="profile">
+  <h2 id="username">Username</h2>
+
+  <div class="rank">
+    <img id="rankImage" src="" alt="Rank">
+    <h3 id="rankName">Rank</h3>
+  </div>
+
+  <div class="stat"><span>Total Stars</span><span id="stars">0</span></div>
+  <div class="stat"><span>Total Levels</span><span id="levels">0</span></div>
+
+  <div class="progress">
+    <div class="bar" id="rankProgress" style="width:0%"></div>
+  </div>
+
+  <small id="joined">Joined:</small>
+</div>
+
+</body>
+</html>
