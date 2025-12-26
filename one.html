@@ -466,14 +466,29 @@
         </div>
     </div>
 
+    <!-- Load Supabase from external file -->
+    <script type="module">
+        // Import Supabase from external file
+        import { supabase } from './supabase.js';
+        
+        // Make supabase available globally (for non-module code)
+        window.supabaseClient = supabase;
+        
+        // Initialize the application after Supabase is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            // Initialize auth
+            initAuth();
+            
+            // Show login page by default
+            showPage('auth');
+            
+            // Check for existing session
+            checkSession();
+        });
+    </script>
+
+    <!-- Main application script (non-module since it needs global access) -->
     <script>
-        // Supabase Configuration - Replace with your actual credentials
-        const SUPABASE_URL = 'https://your-project.supabase.co';
-        const SUPABASE_KEY = 'your-anon-key';
-        
-        // Initialize Supabase client
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-        
         // App State
         let currentUser = null;
         let isLogin = true;
@@ -528,6 +543,35 @@
             }
         }
         
+        // Check for existing session
+        async function checkSession() {
+            try {
+                // Check if we have a stored session
+                const storedUser = localStorage.getItem('quizGameUser');
+                if (storedUser) {
+                    const userData = JSON.parse(storedUser);
+                    
+                    // Verify the user still exists in the database
+                    const { data: user, error } = await window.supabaseClient
+                        .from('users_game')
+                        .select('*')
+                        .eq('id', userData.id)
+                        .single();
+                    
+                    if (!error && user) {
+                        currentUser = user;
+                        showPage('profile');
+                    } else {
+                        // Invalid session, clear it
+                        localStorage.removeItem('quizGameUser');
+                    }
+                }
+            } catch (error) {
+                console.error('Session check error:', error);
+                localStorage.removeItem('quizGameUser');
+            }
+        }
+        
         // Authentication Functions
         function initAuth() {
             const authBtn = document.getElementById('auth-btn');
@@ -561,7 +605,7 @@
             try {
                 if (isLogin) {
                     // Login
-                    const { data: user, error } = await supabase
+                    const { data: user, error } = await window.supabaseClient
                         .from('users_game')
                         .select('*')
                         .eq('username', username)
@@ -572,18 +616,20 @@
                         return;
                     }
                     
+                    // Note: In a real app, you should hash passwords!
                     if (user.password_hash !== password) {
                         showMessage('Incorrect password.', 'error');
                         return;
                     }
                     
                     currentUser = user;
+                    localStorage.setItem('quizGameUser', JSON.stringify(user));
                     showMessage(`Welcome back, ${username}!`, 'success');
                     showPage('profile');
                     
                 } else {
                     // Signup
-                    const { data: existingUser } = await supabase
+                    const { data: existingUser } = await window.supabaseClient
                         .from('users_game')
                         .select('id')
                         .eq('username', username)
@@ -594,22 +640,23 @@
                         return;
                     }
                     
-                    const { error } = await supabase
+                    const { data: newUser, error } = await window.supabaseClient
                         .from('users_game')
                         .insert([{ 
                             username, 
                             password_hash: password,
                             total_stars: 0,
                             created_at: new Date().toISOString()
-                        }]);
+                        }])
+                        .select()
+                        .single();
                     
                     if (error) throw error;
                     
-                    showMessage('Sign up successful! You can now login.', 'success');
-                    isLogin = true;
-                    document.getElementById('auth-btn').textContent = 'Login';
-                    document.getElementById('auth-title').textContent = 'Login';
-                    document.getElementById('switch-mode').textContent = "Don't have an account? Sign up";
+                    currentUser = newUser;
+                    localStorage.setItem('quizGameUser', JSON.stringify(newUser));
+                    showMessage('Sign up successful! Welcome!', 'success');
+                    showPage('profile');
                 }
             } catch (err) {
                 console.error(err);
@@ -621,61 +668,99 @@
             const messageEl = document.getElementById('auth-message');
             messageEl.textContent = text;
             messageEl.className = `message ${type}`;
+            
+            // Clear message after 5 seconds
+            if (type === 'success') {
+                setTimeout(() => {
+                    messageEl.textContent = '';
+                    messageEl.className = 'message';
+                }, 5000);
+            }
         }
         
         // Profile Functions
         async function loadProfile() {
             if (!currentUser) return;
             
-            // Fetch user data with rank
-            const { data: user, error } = await supabase
-                .from('users_game')
-                .select(`
-                    *,
-                    ranks (*)
-                `)
-                .eq('id', currentUser.id)
-                .single();
-            
-            if (error) {
-                console.error('Error loading profile:', error);
-                return;
+            try {
+                // Fetch user data with rank
+                const { data: user, error } = await window.supabaseClient
+                    .from('users_game')
+                    .select(`
+                        *,
+                        ranks (*)
+                    `)
+                    .eq('id', currentUser.id)
+                    .single();
+                
+                if (error) {
+                    console.error('Error loading profile:', error);
+                    return;
+                }
+                
+                // Update profile page
+                document.getElementById('profile-username').textContent = user.username;
+                document.getElementById('total-stars').textContent = user.total_stars || 0;
+                document.getElementById('rank-name').textContent = user.ranks?.rank_name || 'Unranked';
+                document.getElementById('rank-stars').textContent = user.ranks?.stars || 0;
+                
+                // Set rank image
+                const rankImg = document.getElementById('rank-image');
+                if (user.ranks?.rank_image) {
+                    rankImg.src = user.ranks.rank_image;
+                    rankImg.style.display = 'block';
+                } else {
+                    rankImg.style.display = 'none';
+                }
+                
+                // Calculate and display progress
+                const nextRankStars = calculateNextRankStars(user.total_stars);
+                const progressPercent = user.total_stars > 0 ? 
+                    Math.min(100, (user.total_stars / nextRankStars) * 100) : 0;
+                document.getElementById('rank-progress').style.width = `${progressPercent}%`;
+                
+                // Format joined date
+                if (user.created_at) {
+                    const date = new Date(user.created_at);
+                    document.getElementById('joined-date').textContent = 
+                        date.toLocaleDateString('en-US', { 
+                            year: 'numeric', 
+                            month: 'long', 
+                            day: 'numeric' 
+                        });
+                }
+                
+                // Calculate total levels from user's progress
+                // This assumes you have a user_progress table
+                updateLevelsCount(user.id);
+                
+            } catch (error) {
+                console.error('Profile load error:', error);
             }
-            
-            // Update profile page
-            document.getElementById('profile-username').textContent = user.username;
-            document.getElementById('total-stars').textContent = user.total_stars || 0;
-            document.getElementById('rank-name').textContent = user.ranks?.rank_name || 'Unranked';
-            document.getElementById('rank-stars').textContent = user.ranks?.stars || 0;
-            
-            // Set rank image
-            const rankImg = document.getElementById('rank-image');
-            if (user.ranks?.rank_image) {
-                rankImg.src = user.ranks.rank_image;
-                rankImg.style.display = 'block';
-            } else {
-                rankImg.style.display = 'none';
-            }
-            
-            // Calculate and display progress
-            const nextRankStars = calculateNextRankStars(user.total_stars);
-            const progressPercent = user.total_stars > 0 ? 
-                Math.min(100, (user.total_stars / nextRankStars) * 100) : 0;
-            document.getElementById('rank-progress').style.width = `${progressPercent}%`;
-            
-            // Format joined date
-            if (user.created_at) {
-                const date = new Date(user.created_at);
-                document.getElementById('joined-date').textContent = 
-                    date.toLocaleDateString('en-US', { 
-                        year: 'numeric', 
-                        month: 'long', 
-                        day: 'numeric' 
+        }
+        
+        async function updateLevelsCount(userId) {
+            try {
+                // Count unique levels completed by user
+                const { data: progress, error } = await window.supabaseClient
+                    .from('user_progress')  // Adjust table name as needed
+                    .select('level, type')
+                    .eq('user_id', userId);
+                
+                if (!error && progress) {
+                    // Count unique level-type combinations
+                    const uniqueLevels = new Set();
+                    progress.forEach(p => {
+                        uniqueLevels.add(`${p.type}-${p.level}`);
                     });
+                    document.getElementById('total-levels').textContent = uniqueLevels.size;
+                } else {
+                    document.getElementById('total-levels').textContent = '0';
+                }
+            } catch (error) {
+                console.error('Error counting levels:', error);
+                document.getElementById('total-levels').textContent = '0';
             }
-            
-            // Calculate total levels (this would need your actual logic)
-            document.getElementById('total-levels').textContent = '0'; // Update with actual calculation
         }
         
         function calculateNextRankStars(currentStars) {
@@ -692,7 +777,7 @@
             const leaderboardBody = document.getElementById('leaderboard-body');
             
             try {
-                const { data: users, error } = await supabase
+                const { data: users, error } = await window.supabaseClient
                     .from('users_game')
                     .select(`
                         id,
@@ -780,7 +865,7 @@
             const typeFilter = document.getElementById('type-filter');
             
             try {
-                const { data, error } = await supabase
+                const { data, error } = await window.supabaseClient
                     .from('game_questions')
                     .select('type')
                     .neq('type', '')
@@ -821,7 +906,7 @@
                 }
                 
                 try {
-                    const { data, error } = await supabase
+                    const { data, error } = await window.supabaseClient
                         .from('game_questions')
                         .select('level')
                         .eq('type', typeFilter.value)
@@ -873,7 +958,7 @@
         
         async function loadQuestions(type, level, difficulty) {
             try {
-                const { data, error } = await supabase
+                const { data, error } = await window.supabaseClient
                     .from('game_questions')
                     .select(`
                         id,
@@ -1027,6 +1112,8 @@
             clearInterval(timerInterval);
             
             let score = 0;
+            let correctQuestions = [];
+            
             questions.forEach(question => {
                 const correctOptions = question.game_question_options
                     .filter(opt => opt.is_correct)
@@ -1036,6 +1123,10 @@
                 if (correctOptions.length === selected.length && 
                     correctOptions.every(id => selected.includes(id))) {
                     score++;
+                    correctQuestions.push({
+                        type: question.type,
+                        level: question.level
+                    });
                 }
             });
             
@@ -1051,67 +1142,105 @@
             
             // Update user's stats if logged in
             if (currentUser && score > 0) {
-                try {
-                    const starsEarned = score * 10; // Example: 10 stars per correct answer
-                    
-                    await supabase
-                        .from('users_game')
-                        .update({ 
-                            total_stars: (currentUser.total_stars || 0) + starsEarned
-                        })
-                        .eq('id', currentUser.id);
-                    
-                    // Update current user object
-                    currentUser.total_stars = (currentUser.total_stars || 0) + starsEarned;
-                    
-                } catch (error) {
-                    console.error('Error updating user stats:', error);
-                }
+                await updateUserStats(score, correctQuestions);
             }
         }
         
-        // Initialize the application
-        document.addEventListener('DOMContentLoaded', () => {
-            initAuth();
-            showPage('auth'); // Start with login page
-            
-            // Check if user is already logged in (from session storage)
-            const savedUser = localStorage.getItem('quizGameUser');
-            if (savedUser) {
-                try {
-                    currentUser = JSON.parse(savedUser);
-                    showPage('profile');
-                } catch (e) {
-                    localStorage.removeItem('quizGameUser');
+        async function updateUserStats(score, correctQuestions) {
+            try {
+                const starsEarned = score * 10; // Example: 10 stars per correct answer
+                const newTotalStars = (currentUser.total_stars || 0) + starsEarned;
+                
+                // Update total stars
+                const { error: updateError } = await window.supabaseClient
+                    .from('users_game')
+                    .update({ 
+                        total_stars: newTotalStars
+                    })
+                    .eq('id', currentUser.id);
+                
+                if (updateError) throw updateError;
+                
+                // Update current user object
+                currentUser.total_stars = newTotalStars;
+                localStorage.setItem('quizGameUser', JSON.stringify(currentUser));
+                
+                // Update top questions per type
+                if (correctQuestions.length > 0) {
+                    await updateTopQuestions(correctQuestions);
                 }
+                
+                // Refresh profile if on profile page
+                if (pages.profile.classList.contains('active')) {
+                    loadProfile();
+                }
+                
+            } catch (error) {
+                console.error('Error updating user stats:', error);
             }
-            
-            // Save user to localStorage when logged in
-            // Note: In a real app, use proper session management, not localStorage for passwords
-        });
-        
-        // Utility function to save user session
-        function saveUserSession(user) {
-            currentUser = user;
-            localStorage.setItem('quizGameUser', JSON.stringify(user));
         }
         
-        // Utility function to logout
+        async function updateTopQuestions(correctQuestions) {
+            try {
+                // Get current top questions
+                const { data: userData, error: fetchError } = await window.supabaseClient
+                    .from('users_game')
+                    .select('top_questions_per_type')
+                    .eq('id', currentUser.id)
+                    .single();
+                
+                if (fetchError) throw fetchError;
+                
+                let topQuestions = userData.top_questions_per_type || {};
+                
+                // Update with new levels
+                correctQuestions.forEach(({ type, level }) => {
+                    if (!topQuestions[type]) {
+                        topQuestions[type] = [level];
+                    } else if (!topQuestions[type].includes(level)) {
+                        topQuestions[type].push(level);
+                        topQuestions[type].sort((a, b) => b - a); // Sort descending
+                        // Keep only top 3
+                        if (topQuestions[type].length > 3) {
+                            topQuestions[type] = topQuestions[type].slice(0, 3);
+                        }
+                    }
+                });
+                
+                // Update in database
+                const { error: updateError } = await window.supabaseClient
+                    .from('users_game')
+                    .update({ 
+                        top_questions_per_type: topQuestions
+                    })
+                    .eq('id', currentUser.id);
+                
+                if (updateError) throw updateError;
+                
+            } catch (error) {
+                console.error('Error updating top questions:', error);
+            }
+        }
+        
+        // Logout function
         function logout() {
             currentUser = null;
             localStorage.removeItem('quizGameUser');
             showPage('auth');
+            
+            // Clear form fields
+            document.getElementById('username').value = '';
+            document.getElementById('password').value = '';
         }
         
-        // Add logout functionality to navbar
+        // Add logout button to navbar
         document.addEventListener('DOMContentLoaded', () => {
-            const navbar = document.querySelector('.navbar');
+            const navLinks = document.querySelector('.nav-links');
             const logoutBtn = document.createElement('button');
             logoutBtn.className = 'nav-btn';
             logoutBtn.textContent = 'Logout';
-            logoutBtn.style.marginLeft = 'auto';
             logoutBtn.onclick = logout;
-            navbar.querySelector('.nav-links').appendChild(logoutBtn);
+            navLinks.appendChild(logoutBtn);
         });
     </script>
 </body>
